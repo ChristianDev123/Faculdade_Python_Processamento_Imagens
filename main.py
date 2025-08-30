@@ -12,6 +12,7 @@ class ProcessamentoImagem:
         self.original_image = None
         self.resized_image = None
         self.negative_image = None
+        self.sepia_image = None
         self.layout_program = self.create_layout() 
         self.window = sg.Window('CP GIMP', self.layout_program, finalize=True, resizable=True)
         self.main()
@@ -30,7 +31,8 @@ class ProcessamentoImagem:
     def create_layout(self):
         return [
             [sg.Menu([
-                ['Arquivo', ['Abrir', 'Abrir URL', 'Imagem Negativa' ,'Salvar', 'Fechar']],
+                ['Arquivo', ['Abrir', 'Abrir URL' ,'Salvar', 'Fechar']],
+                ['Filtros',['Negativo','Sépia', 'Original']],
                 ['EXIF', ['Mostrar dados da imagem', 'Mostrar dados de GPS']], 
                 ['Sobre a image', ['Informacoes']], 
                 ['Sobre', ['Desenvolvedor']]
@@ -52,12 +54,25 @@ class ProcessamentoImagem:
 
         return Image.fromarray(color_array_img)
 
+    def get_sepia_image(self, bytes_image:io.BytesIO):
+        img = Image.open(bytes_image)
+        color_array_img = np.array(img)
+        for i, row in enumerate(color_array_img):
+            for j, col in enumerate(np.array(row)):
+                r,g,b = col
+                r = min(255, max(0, 150 + r)) 
+                g = min(255, max(0, 100 + g))
+                b = min(255, max(0, 50 + b))
+                color_array_img[i][j] = [r,g,b]
+        return Image.fromarray(color_array_img)
+
     def show_image(self):
         try:
             self.resized_img = self.resize_image(self.original_image)
             img_bytes = io.BytesIO()
             self.resized_img.save(img_bytes, format='PNG')
             self.negative_image = self.get_negative_image(img_bytes)
+            self.sepia_image = self.get_sepia_image(img_bytes)
             self.window['-IMAGE-'].update(data=img_bytes.getvalue())
         except Exception as e:
             sg.popup(f"Erro ao exibir a imagem: {str(e)}")
@@ -167,11 +182,17 @@ class ProcessamentoImagem:
             self.exif_data()
         elif event == 'Mostrar dados de GPS':
             self.gps_data()
-        elif event == 'Imagem Negativa':
-            if(self.original_image):
-                byte_img = io.BytesIO()
+        
+    def handle_filters_dropdown_events(self, event):
+        byte_img = io.BytesIO()
+        if(self.original_image):
+            if event == 'Negativo':
                 self.negative_image.save(byte_img, format='PNG')
-                self.window['-IMAGE-'].update(data=byte_img.getvalue())
+            elif event == 'Sépia':
+                self.sepia_image.save(byte_img, format='PNG')
+            elif event == 'Original':
+                self.resized_image.save(byte_img, format='PNG')
+            self.window['-IMAGE-'].update(data=byte_img.getvalue())
 
     def main(self):
         while True:
@@ -181,7 +202,8 @@ class ProcessamentoImagem:
             elif event == 'Desenvolvedor':
                 sg.popup('Desenvolvido por [Seu Nome] - BCC 6º Semestre')
             else:
-                self.handle_arquivo_dropdown_events(event)        
+                self.handle_arquivo_dropdown_events(event)
+                self.handle_filters_dropdown_events(event)        
 
         self.window.close()
 
